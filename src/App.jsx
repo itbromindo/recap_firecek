@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Flame, // Digunakan untuk IntroSlide
+  Flame,
   CheckCircle2,
   CalendarClock,
   FireExtinguisher,
@@ -20,11 +20,12 @@ import {
   Wrench,
   AlertOctagon,
   CheckCircle,
-  Loader2 // Ikon untuk loading
+  Download,
+  Loader2,
+  Copy
 } from 'lucide-react';
 
 // --- MOCK DATABASE (Simulasi Backend) ---
-// Nanti data ini akan datang dari JSON response API Anda
 const MOCK_DB = {
   'user_high': {
     userName: "PT Sejahtera Abadi",
@@ -41,7 +42,9 @@ const MOCK_DB = {
     damageResolved: 12,
     topIssue: "Pressure",
     topLocation: "Head Office Lt. 1",
-    topLocationCompliance: 100
+    topLocationCompliance: 100,
+    personaTitle: "THE FIRE COMMANDER",
+    personaAnalogy: "🛡️ Benteng Besi"
   },
   'user_medium': {
     userName: "CV Maju Terus",
@@ -58,7 +61,9 @@ const MOCK_DB = {
     damageResolved: 28,
     topIssue: "Hose",
     topLocation: "Gudang Belakang",
-    topLocationCompliance: 90
+    topLocationCompliance: 90,
+    personaTitle: "THE VIGILANT OWL",
+    personaAnalogy: "🦉 Mata Elang"
   },
   'user_low': {
     userName: "Toko Kelontong Barokah",
@@ -75,24 +80,19 @@ const MOCK_DB = {
     damageResolved: 1,
     topIssue: "Need Refill",
     topLocation: "Kasir Depan",
-    topLocationCompliance: 60
+    topLocationCompliance: 60,
+    personaTitle: "THE GAMBLER",
+    personaAnalogy: "🎲 Dadu Panas"
   }
 };
 
 // --- API SERVICE SIMULATION ---
-// [API] Ganti fungsi ini nanti dengan call ke Backend sungguhan
 const apiService = {
   getRecapData: async (kodeCustomer) => {
     return new Promise((resolve, reject) => {
       // Simulasi delay network 1.5 detik
       setTimeout(() => {
-        // [API Integration Note]
-        // Endpoint Real: GET https://web.firecek.com/api/v1/recap?year=2025&kode_customer={kodeCustomer}
-        //
-        // const response = await fetch(`https://web.firecek.com/api/v1/recap?year=2025&kode_customer=${kodeCustomer}`);
-        // const data = await response.json();
-
-        const data = MOCK_DB[kodeCustomer] || MOCK_DB['user_high']; // Default ke high jika not found
+        const data = MOCK_DB[kodeCustomer] || MOCK_DB['user_high'];
         if (data) {
           resolve(data);
         } else {
@@ -122,9 +122,86 @@ const ProgressBar = ({ current, total }) => {
   );
 };
 
+// --- MODAL BERBAGI (FALLBACK TEKS SAJA) ---
+// Digunakan hanya jika Web Share API tidak mendukung berbagi file.
+const ShareModal = ({ isOpen, onClose, shareText }) => {
+  if (!isOpen) return null;
+
+  const handleCopy = () => {
+    const tempTextArea = document.createElement('textarea');
+    tempTextArea.value = shareText;
+    tempTextArea.style.position = 'fixed';
+    tempTextArea.style.left = '-9999px';
+    document.body.appendChild(tempTextArea);
+    tempTextArea.focus();
+    tempTextArea.select();
+    try {
+      document.execCommand('copy');
+      window.alert('Pesan berhasil disalin ke clipboard! Sekarang, ambil gambar hasil Anda untuk dibagikan.');
+    } catch (err) {
+      console.error('Gagal menyalin:', err);
+      window.alert('Gagal menyalin pesan. Silakan salin manual.');
+    }
+    document.body.removeChild(tempTextArea);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 50 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 50 }}
+        className="bg-gray-800/90 text-white p-6 rounded-2xl shadow-2xl w-full max-w-sm"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
+          <h3 className="text-xl font-bold flex items-center gap-2"><Share2 size={24} className="text-red-400" /> Berbagi Gagal</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        {/* Instruksi Ambil Gambar */}
+        <div className="bg-red-900/40 p-3 rounded-lg border border-red-700/50 mb-4">
+          <p className="text-red-300 text-sm font-medium flex items-center gap-2">
+            <AlertOctagon size={16} /> Web Share API Tidak Didukung
+          </p>
+          <p className="text-xs text-red-200 mt-1">
+            *Browser* Anda tidak mendukung berbagi gambar + teks secara langsung.
+            Silakan tekan **Unduh Gambar** lalu salin teks di bawah ini.
+          </p>
+        </div>
+
+        <p className="text-sm font-medium mb-2 text-gray-300">Salin pesan berikut untuk dibagikan bersama gambar:</p>
+
+        {/* Teks yang Disematkan */}
+        <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 text-sm text-gray-200 mb-4 overflow-auto max-h-40">
+          {shareText}
+        </div>
+
+        {/* Tombol Aksi */}
+        <motion.button
+          onClick={handleCopy}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full py-3 bg-red-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg hover:bg-red-700 transition"
+        >
+          <Copy size={18} /> Salin Teks Pesan
+        </motion.button>
+
+      </motion.div>
+    </motion.div>
+  );
+};
+
 // --- HALAMAN-HALAMAN SLIDE ---
 
-// REVISI INTRO SLIDE DISINI
 const IntroSlide = ({ onNext, data }) => (
   <div className="flex flex-col items-center justify-center h-full text-center px-6 relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
     {/* Plasma/Blob Background Effect (Enhanced) */}
@@ -311,7 +388,10 @@ const RefillSlide = ({ data }) => (
     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5"><RefreshCcw size={400} /></div>
     <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center mb-10 z-10">
       <h2 className="text-2xl font-medium text-blue-200">Penyegaran Aset</h2>
-      <div className="mt-4 flex items-center justify-center gap-3"><FireExtinguisher size={48} className="text-blue-400" /><span className="text-6xl font-black">{data.refillCount}</span></div>
+      <div className="mt-4 flex items-center justify-center gap-3">
+        <FireExtinguisher size={48} className="text-blue-400" />
+        <span className="text-6xl font-black">{data.refillCount}</span>
+      </div>
       <p className="text-xl mt-2 font-medium">Transaksi Refill</p>
     </motion.div>
     <div className="grid grid-cols-1 gap-4 z-10">
@@ -326,7 +406,8 @@ const RefillSlide = ({ data }) => (
   </div>
 );
 
-const PersonaSlide = ({ data }) => {
+// PersonaSlide sekarang menerima ref dan handler untuk Download & Share
+const PersonaSlide = React.forwardRef(({ data, onDownload, onShare, isDownloading, isCapturing }, ref) => {
   let persona = {};
   if (data.safetyScore >= 90) {
     persona = { title: "THE FIRE COMMANDER", subtitle: "Sang Penakluk Risiko", desc: "Anda tidak hanya mematuhi aturan, Anda menetapkan standar! Aset Anda seperti benteng besi yang tak tertembus api.", color: "from-yellow-400 to-red-600", icon: <Award size={80} className="text-yellow-200" />, analogy: "🛡️ Benteng Besi" };
@@ -335,18 +416,55 @@ const PersonaSlide = ({ data }) => {
   } else {
     persona = { title: "THE GAMBLER", subtitle: "Pemain Api", desc: "Hati-hati! Keberuntungan tidak berlangsung selamanya. Jadwal inspeksi Anda butuh perhatian serius tahun depan.", color: "from-gray-800 to-gray-900", icon: <AlertTriangle size={80} className="text-red-500" />, analogy: "🎲 Dadu Panas" };
   }
+
   return (
-    <div className={`flex flex-col h-full items-center justify-center px-6 bg-gradient-to-br ${persona.color} text-white relative`}>
+    <div
+      ref={ref} // Ref diletakkan di container slide untuk di-capture
+      className={`flex flex-col h-full items-center justify-center px-6 bg-gradient-to-br ${persona.color} text-white relative`}
+    >
+      {/* Background Bubbles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">{[...Array(20)].map((_, i) => (<motion.div key={i} className="absolute rounded-full bg-white/20" initial={{ top: -20, left: Math.random() * 100 + "%", width: Math.random() * 20 + 5, height: Math.random() * 20 + 5 }} animate={{ top: "120%", rotate: 360 }} transition={{ duration: Math.random() * 2 + 3, repeat: Infinity, delay: Math.random() * 2 }} />))}</div>
+
+      {/* Content */}
       <motion.div initial={{ scale: 0.5, rotate: -10, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0.5 }} className="mb-8 p-6 bg-white/10 backdrop-blur-lg rounded-full shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/30">{persona.icon}</motion.div>
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white/80 font-medium tracking-widest text-sm mb-2">STATUS KESIAPAN 2025</motion.p>
       <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="text-4xl font-black text-center mb-1 uppercase leading-tight">{persona.title}</motion.h1>
-      <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="text-xl font-bold text-white/90 mb-6 bg-black/20 px-4 py-1 rounded-full">{persona.analogy}</motion.h2>
+      <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="text-xl font-bold text-white/90 mb-6 px-4 py-1 rounded-full">{persona.analogy}</motion.h2>
       <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="bg-black/30 backdrop-blur-sm p-6 rounded-2xl text-center border border-white/10"><p className="text-lg leading-relaxed font-medium">"{persona.desc}"</p></motion.div>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="mt-8 flex gap-4"><button className="flex items-center gap-2 bg-white text-gray-900 px-6 py-3 rounded-full font-bold shadow-lg active:scale-95 transition-transform"><Share2 size={18} /> Bagikan</button></motion.div>
+
+      {/* Tombol Aksi: Sembunyikan jika isCapturing=true */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1 }}
+        className={`mt-8 flex flex-col gap-3 ${isCapturing ? 'hidden' : 'block'}`}
+      >
+        {/* Tombol Download Gambar */}
+        <button
+          onClick={onDownload}
+          disabled={isDownloading}
+          className="flex items-center gap-2 bg-yellow-400 text-gray-900 px-6 py-3 rounded-full font-black shadow-lg hover:scale-[1.03] active:scale-95 transition-transform duration-150 disabled:bg-gray-500 disabled:cursor-not-allowed"
+        >
+          {isDownloading ? (
+            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}><Loader2 size={18} /></motion.div>
+          ) : (
+            <Download size={18} />
+          )}
+          {isDownloading ? 'Sedang Mengunduh...' : 'UNDUH GAMBAR HASIL'}
+        </button>
+
+        {/* Tombol Bagikan LENGKAP - Memicu Web Share API */}
+        <button
+          onClick={onShare} // Memanggil fungsi berbagi yang baru
+          disabled={isDownloading}
+          className="flex items-center gap-2 text-white bg-blue-600 px-6 py-3 rounded-full font-black shadow-lg hover:scale-[1.03] active:scale-95 transition-transform duration-150 disabled:bg-gray-500 disabled:cursor-not-allowed"
+        >
+          <Share2 size={18} /> BAGIKAN HASIL LENGKAP
+        </button>
+      </motion.div>
     </div>
   );
-};
+});
 
 // --- LOADING & ERROR SCREENS ---
 
@@ -376,14 +494,155 @@ const ErrorScreen = ({ onRetry }) => (
 export default function App() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const personaSlideRef = useRef(null);
 
   // API READY STATES
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // New state to control button visibility during capture
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false); // Reused for capturing status
+
+  // SHARE MODAL STATES (for fallback only)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [fallbackShareText, setFallbackShareText] = useState('');
+
   // Simulation for debug/demo
   const [debugScenario, setDebugScenario] = useState('user_high');
+
+  // --- Memuat Pustaka Eksternal (html2canvas) ---
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => console.log('html2canvas loaded');
+    document.head.appendChild(script);
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, []);
+
+  const closeShareModal = () => {
+    setIsShareModalOpen(false);
+    setFallbackShareText('');
+  };
+
+  // 1. Fungsi Fallback Berbagi (Modal Salin Teks)
+  const handleFallbackShare = useCallback((text) => {
+    setFallbackShareText(text);
+    setIsShareModalOpen(true);
+    setIsAutoPlaying(false); // Stop autoplay when modal is open
+  }, []);
+
+  // 2. Fungsi Utama Berbagi (Web Share API)
+  const handleCaptureAndShare = useCallback(async () => {
+    if (!window.html2canvas || !personaSlideRef.current || isDownloading || !data) {
+      window.alert('Pustaka gambar belum siap atau data tidak valid. Coba lagi.');
+      return;
+    }
+
+    // Tentukan Persona & Teks untuk Sharing
+    let persona = {};
+    if (data.safetyScore >= 90) {
+      persona = { title: "THE FIRE COMMANDER", analogy: "🛡️ Benteng Besi" };
+    } else if (data.safetyScore >= 70) {
+      persona = { title: "THE VIGILANT OWL", analogy: "🦉 Mata Elang" };
+    } else {
+      persona = { title: "THE GAMBLER", analogy: "🎲 Dadu Panas" };
+    }
+
+    const shareText = `Lihat status kesiapan APAR ${data.userName} tahun 2025 di Firecek Wrapped! Kami mendapatkan gelar ${persona.analogy} - ${persona.title}!
+Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi aset dari bahaya kebakaran sekarang: https://firecek.com`;
+
+    setIsDownloading(true); // Reusing state for capturing status
+    setIsCapturing(true);
+
+    // Tunggu sebentar untuk memastikan React selesai merender perubahan (tombol tersembunyi)
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      const element = personaSlideRef.current;
+      const canvas = await window.html2canvas(element, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+
+      // 1. Konversi Canvas ke Blob
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+
+      // 2. Buat Objek File
+      const fileName = `Firecek_Wrapped_2025_${data.userName.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+      const imageFile = new File([blob], fileName, { type: 'image/png' });
+
+      const shareData = {
+        files: [imageFile],
+        title: 'Firecek Wrapped 2025: Status Kesiapan APAR',
+        text: shareText,
+        url: 'https://firecek.com'
+      };
+
+      // 3. Coba Web Share API dengan File
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // 4. Jika Web Share API Gagal/Tidak Didukung, gunakan Fallback Modal
+        handleFallbackShare(shareText);
+      }
+
+    } catch (e) {
+      // Jika pengguna membatalkan (AbortError), tidak perlu modal
+      if (e.name !== 'AbortError') {
+        console.error("Gagal berbagi menggunakan Web Share API:", e);
+        // Beri Fallback jika ada error tak terduga
+        handleFallbackShare(shareText);
+      }
+    } finally {
+      setIsDownloading(false);
+      setIsCapturing(false);
+    }
+  }, [data, isDownloading, handleFallbackShare]); // Tambahkan isDownloading dan handleFallbackShare sebagai dependency
+
+  // Fungsi untuk menangkap DOM dan mengunduh gambar (tetap ada untuk tombol Download)
+  const handleCaptureAndDownload = useCallback(async () => {
+    if (!window.html2canvas || !personaSlideRef.current) {
+      window.alert('Pustaka gambar belum siap. Coba lagi.');
+      return;
+    }
+
+    setIsDownloading(true);
+    setIsCapturing(true);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      const element = personaSlideRef.current;
+      const canvas = await window.html2canvas(element, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+
+      const image = canvas.toDataURL('image/png');
+
+      const a = document.createElement('a');
+      a.href = image;
+      a.download = `Firecek_Wrapped_2025_${data.userName.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      window.alert('Gambar hasil wrapped berhasil diunduh!');
+
+    } catch (e) {
+      console.error("Gagal mengunduh gambar:", e);
+      window.alert('Gagal mengunduh gambar. Silakan coba *screenshot* manual.');
+    } finally {
+      setIsDownloading(false);
+      setIsCapturing(false);
+    }
+  }, [data?.userName]);
 
   // Function to fetch data (Bisa diganti dengan real API Call)
   const fetchData = async (kodeCustomer) => {
@@ -392,23 +651,7 @@ export default function App() {
     setCurrentSlide(0); // Reset slide ke awal
 
     try {
-      // [API Integration Note - URL Handling]
-      // Jika aplikasi berjalan di: recap.firecek.com/2025/ENCODED_STRING
-      // Anda perlu mengambil 'ENCODED_STRING' dari URL dan melakukan decoding.
-      // 
-      // Contoh implementasi di React Router atau window.location:
-      // const pathSegments = window.location.pathname.split('/');
-      // const encodedCode = pathSegments[pathSegments.length - 1]; // asumsi segmen terakhir
-      // const decodedKodeCustomer = atob(encodedCode); // jika base64, atau gunakan decoder custom Anda
-
-      // [API Integration Note - Fetching]
-      // Gunakan kode customer yang sudah di-decode untuk fetch data:
-      // const response = await fetch(`https://web.firecek.com/api/v1/recap?year=2025&kode_customer=${decodedKodeCustomer}`);
-      // if (!response.ok) throw new Error("Gagal mengambil data");
-      // const result = await response.json();
-
       const result = await apiService.getRecapData(kodeCustomer);
-
       setData(result);
       setIsLoading(false);
     } catch (err) {
@@ -420,12 +663,6 @@ export default function App() {
 
   // Initial Load & Debug Toggle Effect
   useEffect(() => {
-    // [API Integration Note]
-    // Di sinilah Anda memanggil fungsi decoding URL saat pertama kali load
-    // const customerCodeFromUrl = ... (logika ambil dari URL)
-    // fetchData(customerCodeFromUrl);
-
-    // Untuk demo saat ini, kita gunakan debug scenario
     fetchData(debugScenario);
   }, [debugScenario]);
 
@@ -436,7 +673,20 @@ export default function App() {
     { id: 3, component: <DamageReportSlide data={data} /> },
     { id: 4, component: <TopLocationSlide data={data} /> },
     { id: 5, component: <RefillSlide data={data} /> },
-    { id: 6, component: <PersonaSlide data={data} /> },
+    // PersonaSlide menerima handler share yang baru
+    {
+      id: 6,
+      component: (
+        <PersonaSlide
+          ref={personaSlideRef}
+          data={data}
+          onShare={handleCaptureAndShare} // NEW: Panggil Web Share API
+          onDownload={handleCaptureAndDownload} // Tetap untuk download
+          isDownloading={isDownloading}
+          isCapturing={isCapturing}
+        />
+      )
+    },
   ];
 
   const goToSlide = (index) => {
@@ -446,7 +696,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!isAutoPlaying || isLoading || !data) return;
+    if (!isAutoPlaying || isLoading || !data || isShareModalOpen) return;
     const duration = currentSlide === 0 ? 99999 : 5000;
     const timer = setTimeout(() => {
       if (currentSlide < slides.length - 1) {
@@ -456,18 +706,17 @@ export default function App() {
       }
     }, duration);
     return () => clearTimeout(timer);
-  }, [currentSlide, isAutoPlaying, slides.length, isLoading, data]);
+  }, [currentSlide, isAutoPlaying, slides.length, isLoading, data, isShareModalOpen]);
 
   const handleTap = (e) => {
-    if (isLoading || !data) return;
+    if (isLoading || !data || isShareModalOpen) return;
     if (e.target.closest('.debug-controls')) return;
 
-    const screenWidth = window.innerWidth;
-    const clickX = e.clientX;
-    if (e.target.tagName === 'BUTTON') return;
+    // Cek apakah yang di-klik adalah tombol, jika ya, jangan navigasi
+    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
 
     const container = e.currentTarget.getBoundingClientRect();
-    const relativeClickX = clickX - container.left;
+    const relativeClickX = e.clientX - container.left;
 
     if (relativeClickX < container.width / 3) {
       goToSlide(currentSlide - 1);
@@ -492,63 +741,81 @@ export default function App() {
         ) : (
           <>
             {/* Progress Bars */}
-            {currentSlide > 0 && (
-              <ProgressBar current={currentSlide} total={slides.length} />
+            {currentSlide > 0 && currentSlide < slides.length - 1 && (
+              <ProgressBar current={currentSlide} total={slides.length - 1} />
             )}
 
-            {/* Slides Animation */}
-            <AnimatePresence mode="wait">
+            {/* Slide Content */}
+            <AnimatePresence initial={false} mode="wait">
               <motion.div
-                key={currentSlide + debugScenario}
-                initial={{ opacity: 0, scale: 1.05 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-                className="h-full w-full"
+                key={currentSlide}
+                initial={{ opacity: 0, x: 200 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -200 }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-0"
               >
                 {slides[currentSlide].component}
               </motion.div>
             </AnimatePresence>
 
-            {/* Navigation Hints */}
-            <div className="hidden sm:block absolute top-1/2 left-2 text-white/20 pointer-events-none">◀</div>
-            <div className="hidden sm:block absolute top-1/2 right-2 text-white/20 pointer-events-none">▶</div>
-
-            {/* Branding Small */}
-            <div className="absolute bottom-4 left-0 w-full flex flex-col items-center z-50 pointer-events-none">
-              <p className="text-[10px] text-white/40 font-bold tracking-widest">FIRECEK</p>
+            {/* Controls */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-between z-50 pointer-events-none">
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: currentSlide > 0 ? 1 : 0 }}
+                transition={{ duration: 0.3 }}
+                onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide - 1); }}
+                className="pointer-events-auto bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition shadow-lg"
+              >
+                <ArrowRight size={20} className="rotate-180" />
+              </motion.button>
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: currentSlide < slides.length - 1 && currentSlide > 0 ? 1 : 0 }}
+                transition={{ duration: 0.3 }}
+                onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide + 1); }}
+                className="pointer-events-auto bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition shadow-lg"
+              >
+                <ArrowRight size={20} />
+              </motion.button>
             </div>
           </>
         )}
       </div>
 
-      {/* --- DEBUG/DEMO CONTROLS (OUTSIDE PHONE) --- */}
-      <div className="mt-8 bg-gray-900 p-4 rounded-xl border border-gray-800 debug-controls flex flex-col items-center gap-4">
-        <div className="flex items-center gap-2 text-white/60 text-sm uppercase tracking-wider font-bold">
-          <Settings2 size={16} /> API Simulation
+      {/* Debug/Scenario Controls */}
+      <div className="debug-controls mt-4 text-center">
+        <p className="text-sm text-gray-500 mb-2">Simulasi Pengguna:</p>
+        <div className="flex gap-2 text-xs">
+          {Object.keys(MOCK_DB).map(key => (
+            <button
+              key={key}
+              onClick={() => setDebugScenario(key)}
+              className={`px-3 py-1 rounded-full font-medium transition ${debugScenario === key ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              {key.replace('user_', '').toUpperCase()}
+            </button>
+          ))}
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setDebugScenario('user_high')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${debugScenario === 'user_high' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-          >
-            Load User A (High)
-          </button>
-          <button
-            onClick={() => setDebugScenario('user_medium')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${debugScenario === 'user_medium' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-          >
-            Load User B (Med)
-          </button>
-          <button
-            onClick={() => setDebugScenario('user_low')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${debugScenario === 'user_low' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-          >
-            Load User C (Low)
-          </button>
-        </div>
-        <p className="text-xs text-gray-500">Tombol ini mensimulasikan fetch data API dengan delay.</p>
+        <button
+          onClick={() => setIsAutoPlaying(prev => !prev)}
+          className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+        >
+          {isAutoPlaying ? '⏸️ Jeda Autoplay' : '▶️ Lanjutkan Autoplay'}
+        </button>
       </div>
+
+      {/* Fallback Share Modal */}
+      <AnimatePresence>
+        {isShareModalOpen && (
+          <ShareModal
+            isOpen={isShareModalOpen}
+            onClose={closeShareModal}
+            shareText={fallbackShareText}
+          />
+        )}
+      </AnimatePresence>
 
     </div>
   );
