@@ -25,81 +25,109 @@ import {
   Copy
 } from 'lucide-react';
 
-// --- MOCK DATABASE (Simulasi Backend) ---
+// --- MOCK DATABASE FALLBACK ---
 const MOCK_DB = {
-  'user_high': {
-    userName: "PT Sejahtera Abadi",
-    totalApar: 200,
-    inspectionsScheduled: 2400,
-    inspectionsRealized: 2380,
-    ontimePercentage: 99,
-    refillCount: 85,
-    refillTypeMost: "Powder 6kg",
-    safetyScore: 98,
-    busiestMonth: "Desember",
-    busiestMonthCount: 210,
-    damageCases: 12,
-    damageResolved: 12,
-    topIssue: "Pressure",
-    topLocation: "Head Office Lt. 1",
-    topLocationCompliance: 100,
-    personaTitle: "THE FIRE COMMANDER",
-    personaAnalogy: "🛡️ Benteng Besi"
-  },
-  'user_medium': {
-    userName: "CV Maju Terus",
-    totalApar: 50,
-    inspectionsScheduled: 600,
-    inspectionsRealized: 460,
-    ontimePercentage: 76,
-    refillCount: 12,
-    refillTypeMost: "CO2 3kg",
-    safetyScore: 75,
-    busiestMonth: "Agustus",
-    busiestMonthCount: 50,
-    damageCases: 35,
-    damageResolved: 28,
-    topIssue: "Hose",
-    topLocation: "Gudang Belakang",
-    topLocationCompliance: 90,
-    personaTitle: "THE VIGILANT OWL",
-    personaAnalogy: "🦉 Mata Elang"
-  },
-  'user_low': {
-    userName: "Toko Kelontong Barokah",
-    totalApar: 20,
-    inspectionsScheduled: 240,
-    inspectionsRealized: 85,
-    ontimePercentage: 35,
-    refillCount: 0,
-    refillTypeMost: "N/A",
-    safetyScore: 45,
-    busiestMonth: "Januari",
-    busiestMonthCount: 20,
-    damageCases: 8,
-    damageResolved: 1,
-    topIssue: "Need Refill",
-    topLocation: "Kasir Depan",
-    topLocationCompliance: 60,
-    personaTitle: "THE GAMBLER",
-    personaAnalogy: "🎲 Dadu Panas"
-  }
+  userName: "PMS.C2063 (MOCK DATA FALLBACK)",
+  totalApar: 100,
+  inspectionsScheduled: 1200,
+  inspectionsRealized: 1150,
+  ontimePercentage: 95,
+  refillCount: 40,
+  refillTypeMost: "Powder 6kg",
+  safetyScore: 92,
+  busiestMonth: "Maret",
+  busiestMonthCount: 110,
+  damageCases: 5,
+  damageResolved: 5,
+  topIssue: "Pressure",
+  topLocation: "Gedung A Lt. 5",
+  topLocationCompliance: 100,
+  personaTitle: "THE FIRE COMMANDER",
+  personaAnalogy: "🛡️ Benteng Besi"
 };
 
-// --- API SERVICE SIMULATION ---
+// --- SERVICE API NYATA (DENGAN LOGIKA FETCH) ---
 const apiService = {
-  getRecapData: async (kodeCustomer) => {
-    return new Promise((resolve, reject) => {
-      // Simulasi delay network 1.5 detik
-      setTimeout(() => {
-        const data = MOCK_DB[kodeCustomer] || MOCK_DB['user_high'];
-        if (data) {
-          resolve(data);
-        } else {
-          reject(new Error("Data not found"));
+  // Fungsi kini menerima kodeCustomer dan year
+  getRecapData: async (kodeCustomer, year) => {
+    // Memastikan year tidak null sebelum digunakan
+    const currentYear = year || new Date().getFullYear();
+    // Mengganti baseUrl untuk mengarah ke api Anda (asumsi)
+    const baseUrl = "https://web.firecek.com/api/v1/recap";
+    // PERBAIKAN: Mengganti template literal dengan string concatenation
+    const url = baseUrl + "?year=" + currentYear + "&kode_customer=" + kodeCustomer;
+
+    console.log("Mengambil data dari: " + url);
+
+    // Logika Exponential Backoff untuk mengatasi kegagalan fetch sementara
+    const maxRetries = 3;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          mode: 'cors',
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          // PERBAIKAN: Mengganti template literal dengan string concatenation
+          throw new Error("Gagal mengambil data. Status: " + response.status + ". Body: " + errorBody.substring(0, 100) + "...");
         }
-      }, 1500);
-    });
+
+        const data = await response.json();
+
+        // --- PERBAIKAN PEMETAAN DATA (SESUAI REQUEST AWAL USER) ---
+        const formattedData = {
+          userName: data.userName || kodeCustomer,
+          totalApar: data.totalApar || 0,
+
+          // Inspeksi (Langsung dari kunci flat)
+          inspectionsScheduled: data.inspectionsScheduled || 0,
+          inspectionsRealized: data.inspectionsRealized || 0,
+          ontimePercentage: data.ontimePercentage || 0, // Persentase sudah dihitung di backend
+
+          // Refill (Langsung dari kunci flat)
+          refillCount: data.refillCount || 0,
+          refillTypeMost: data.refillTypeMost || "N/A",
+
+          // Score & Busiest Month
+          safetyScore: data.safetyScore || 0,
+          busiestMonth: data.busiestMonth || "N/A",
+          busiestMonthCount: data.busiestMonthCount || 0,
+
+          // Damage Report
+          damageCases: data.damageCases || 0,
+          damageResolved: data.damageResolved || 0,
+          topIssue: data.topIssue || "N/A",
+
+          // Location Compliance
+          topLocation: data.topLocation || "N/A",
+          topLocationCompliance: data.topLocationCompliance || 0,
+
+          // Persona
+          personaTitle: data.personaTitle || "Unknown Persona",
+          personaAnalogy: data.personaAnalogy || "❓"
+        };
+
+        return formattedData;
+
+      } catch (error) {
+        lastError = error;
+        // PERBAIKAN: Mengganti template literal dengan string concatenation
+        console.error("Kesalahan Fetch Data (Percobaan " + (attempt + 1) + "):", error);
+        if (attempt < maxRetries - 1) {
+          const delay = Math.pow(2, attempt) * 1000;
+          // Jangan log error backoff
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // Jika semua percobaan gagal, gunakan MOCK_DB sebagai fallback
+    console.warn("❗ PERINGATAN KONEKSI: Semua percobaan gagal. Menggunakan data MOCK sebagai fallback.");
+    // PERBAIKAN: Mengganti template literal dengan string concatenation
+    throw new Error("Gagal memuat data recap dari API setelah " + maxRetries + " percobaan. Menggunakan data fallback. (Detail: " + lastError.message + ")");
   }
 };
 
@@ -114,7 +142,8 @@ const ProgressBar = ({ current, total }) => {
             initial={{ width: "0%" }}
             animate={{ width: idx < current ? "100%" : idx === current ? "100%" : "0%" }}
             transition={{ duration: idx === current ? 5 : 0.3, ease: "linear" }}
-            className={`h-full ${idx <= current ? 'bg-white' : 'bg-transparent'}`}
+            // PERBAIKAN: Mengganti template literal dengan string concatenation
+            className={"h-full " + (idx <= current ? 'bg-white' : 'bg-transparent')}
           />
         </div>
       ))}
@@ -123,7 +152,6 @@ const ProgressBar = ({ current, total }) => {
 };
 
 // --- MODAL BERBAGI (FALLBACK TEKS SAJA) ---
-// Digunakan hanya jika Web Share API tidak mendukung berbagi file.
 const ShareModal = ({ isOpen, onClose, shareText }) => {
   if (!isOpen) return null;
 
@@ -136,6 +164,7 @@ const ShareModal = ({ isOpen, onClose, shareText }) => {
     tempTextArea.focus();
     tempTextArea.select();
     try {
+      // document.execCommand('copy') lebih aman di environment iFrame
       document.execCommand('copy');
       window.alert('Pesan berhasil disalin ke clipboard! Sekarang, ambil gambar hasil Anda untuk dibagikan.');
     } catch (err) {
@@ -167,7 +196,6 @@ const ShareModal = ({ isOpen, onClose, shareText }) => {
           </button>
         </div>
 
-        {/* Instruksi Ambil Gambar */}
         <div className="bg-red-900/40 p-3 rounded-lg border border-red-700/50 mb-4">
           <p className="text-red-300 text-sm font-medium flex items-center gap-2">
             <AlertOctagon size={16} /> Web Share API Tidak Didukung
@@ -180,12 +208,10 @@ const ShareModal = ({ isOpen, onClose, shareText }) => {
 
         <p className="text-sm font-medium mb-2 text-gray-300">Salin pesan berikut untuk dibagikan bersama gambar:</p>
 
-        {/* Teks yang Disematkan */}
         <div className="bg-gray-900 p-3 rounded-lg border border-gray-700 text-sm text-gray-200 mb-4 overflow-auto max-h-40">
           {shareText}
         </div>
 
-        {/* Tombol Aksi */}
         <motion.button
           onClick={handleCopy}
           whileHover={{ scale: 1.02 }}
@@ -202,13 +228,12 @@ const ShareModal = ({ isOpen, onClose, shareText }) => {
 
 // --- HALAMAN-HALAMAN SLIDE ---
 
-// NOTE: Tombol 'LIHAT RECAP' dihapus dan perpindahan slide akan ditangani oleh useEffect di komponen App
-const IntroSlide = ({ data }) => (
+const IntroSlide = ({ data, currentYear }) => (
   <div className="flex flex-col items-center justify-center h-full text-center px-6 relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
-    {/* Plasma/Blob Background Effect (Enhanced) */}
+    {/* Plasma/Blob Background Effect */}
     {[...Array(5)].map((_, i) => (
       <motion.div
-        key={`plasma-${i}`}
+        key={"plasma-" + i}
         className="absolute bg-blue-600/10 rounded-full blur-3xl pointer-events-none"
         style={{
           width: Math.random() * 300 + 100,
@@ -254,7 +279,7 @@ const IntroSlide = ({ data }) => (
         transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
         className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-white to-yellow-300 drop-shadow-lg"
       >
-        2025
+        {currentYear}
       </motion.h2>
 
       {/* Prepared For Box - Teks diubah menjadi lebih ringan dan santai */}
@@ -264,12 +289,11 @@ const IntroSlide = ({ data }) => (
         transition={{ delay: 1 }}
         className="mt-10 bg-white/5 backdrop-blur-sm p-5 rounded-2xl border border-white/20 w-full max-w-xs shadow-xl"
       >
-        {/* Perubahan teks: "Dibuat Khusus Untuk" -> "Ini Dia Rekapan Spesial Punya" */}
         <p className="text-blue-200 text-xs font-medium uppercase tracking-widest mb-1">Ini Dia Rekapan Spesial Punya</p>
-        <p className="text-white font-bold text-xl leading-tight">{data.userName}</p>
+        <p className="text-white font-bold text-xl leading-tight">{data?.userName || "Memuat..."}</p>
       </motion.div>
 
-      {/* Ganti Tombol CTA dengan Text Auto-Scroll */}
+      {/* Text Auto-Scroll */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -288,37 +312,59 @@ const IntroSlide = ({ data }) => (
   </div>
 );
 
-const InspectionSlide = ({ data }) => (
-  <div className="flex flex-col h-full px-6 pt-20 bg-gray-900 text-white relative overflow-hidden">
-    <div className="absolute top-0 right-0 p-10 opacity-10">
-      <CalendarClock size={300} />
+const InspectionSlide = ({ data }) => {
+  // Membangun string class name dengan concatenation untuk menghindari error template literal
+  const realizedBarClass = "h-full rounded-full bg-gradient-to-r " +
+    (data.ontimePercentage > 80
+      ? "from-green-500 to-emerald-300"
+      : data.ontimePercentage > 50
+        ? "from-yellow-500 to-orange-400"
+        : "from-red-600 to-red-400");
+
+  const realizedBoxClass = "backdrop-blur-md p-6 rounded-2xl border shadow-lg " +
+    (data.ontimePercentage > 80
+      ? "bg-gray-800/80 border-green-500/30 shadow-green-500/10"
+      : "bg-gray-800/80 border-red-500/30 shadow-red-500/10");
+
+  return (
+    <div className="flex flex-col h-full px-6 pt-20 bg-gray-900 text-white relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-10 opacity-10">
+        <CalendarClock size={300} />
+      </div>
+      <motion.h2 initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="text-3xl font-bold mb-8 z-10 leading-tight">
+        {data.ontimePercentage > 80 ? (<>Anda sangat <br /><span className="text-green-400">Disiplin!</span></>) :
+          data.ontimePercentage > 50 ? (<>Usaha yang <br /><span className="text-yellow-400">Cukup Baik!</span></>) :
+            (<>Perlu lebih <br /><span className="text-red-400">Konsisten.</span></>)}
+      </motion.h2>
+      <div className="space-y-6 z-10">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-gray-800/60 backdrop-blur-md p-6 rounded-2xl border border-gray-700">
+          <div className="flex justify-between items-end mb-2">
+            <span className="text-gray-400 text-sm">Jadwal Inspeksi</span>
+            <span className="text-2xl font-bold">{data.inspectionsScheduled}</span>
+          </div>
+          <div className="h-2 w-full bg-gray-700 rounded-full"><div className="h-full bg-gray-500 rounded-full w-full"></div></div>
+        </motion.div>
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className={realizedBoxClass}>
+          <div className="flex justify-between items-end mb-2">
+            <span className={`${data.ontimePercentage > 80 ? "text-green-400" : "text-red-400"} text-sm font-bold flex items-center gap-1`}><CheckCircle2 size={14} /> Terlaksana</span>
+            <span className="text-4xl font-black text-white">{data.inspectionsRealized}</span>
+          </div>
+          <div className="h-4 w-full bg-gray-700 rounded-full overflow-hidden">
+            {/* Perhitungan persentase harus berdasarkan scheduled vs realized, bukan ontimePercentage */}
+            <motion.div
+              initial={{ width: 0 }}
+              // PERBAIKAN: Mengganti template literal dengan string concatenation
+              animate={{ width: String((data.inspectionsRealized / (data.inspectionsScheduled || 1)) * 100) + "%" }}
+              transition={{ duration: 1.5, delay: 0.8 }}
+              className={realizedBarClass}
+            ></motion.div>
+          </div>
+          <p className="mt-4 text-sm text-gray-300">Tingkat Ketepatan Waktu: <span className={`font-bold ${data.ontimePercentage > 80 ? "text-green-400" : "text-white"}`}>{data.ontimePercentage}%</span>.</p>
+        </motion.div>
+      </div>
     </div>
-    <motion.h2 initial={{ x: -50, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="text-3xl font-bold mb-8 z-10 leading-tight">
-      {data.ontimePercentage > 80 ? (<>Anda sangat <br /><span className="text-green-400">Disiplin!</span></>) :
-        data.ontimePercentage > 50 ? (<>Usaha yang <br /><span className="text-yellow-400">Cukup Baik!</span></>) :
-          (<>Perlu lebih <br /><span className="text-red-400">Konsisten.</span></>)}
-    </motion.h2>
-    <div className="space-y-6 z-10">
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-gray-800/60 backdrop-blur-md p-6 rounded-2xl border border-gray-700">
-        <div className="flex justify-between items-end mb-2">
-          <span className="text-gray-400 text-sm">Jadwal Inspeksi</span>
-          <span className="text-2xl font-bold">{data.inspectionsScheduled}</span>
-        </div>
-        <div className="h-2 w-full bg-gray-700 rounded-full"><div className="h-full bg-gray-500 rounded-full w-full"></div></div>
-      </motion.div>
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className={`backdrop-blur-md p-6 rounded-2xl border shadow-lg ${data.ontimePercentage > 80 ? "bg-gray-800/80 border-green-500/30 shadow-green-500/10" : "bg-gray-800/80 border-red-500/30 shadow-red-500/10"}`}>
-        <div className="flex justify-between items-end mb-2">
-          <span className={`${data.ontimePercentage > 80 ? "text-green-400" : "text-red-400"} text-sm font-bold flex items-center gap-1`}><CheckCircle2 size={14} /> Terlaksana</span>
-          <span className="text-4xl font-black text-white">{data.inspectionsRealized}</span>
-        </div>
-        <div className="h-4 w-full bg-gray-700 rounded-full overflow-hidden">
-          <motion.div initial={{ width: 0 }} animate={{ width: `${(data.inspectionsRealized / data.inspectionsScheduled) * 100}%` }} transition={{ duration: 1.5, delay: 0.8 }} className={`h-full rounded-full bg-gradient-to-r ${data.ontimePercentage > 80 ? "from-green-500 to-emerald-300" : data.ontimePercentage > 50 ? "from-yellow-500 to-orange-400" : "from-red-600 to-red-400"}`}></motion.div>
-        </div>
-        <p className="mt-4 text-sm text-gray-300">Itu artinya <span className={`font-bold ${data.ontimePercentage > 80 ? "text-green-400" : "text-white"}`}>{data.ontimePercentage}%</span> APAR Anda selalu siap siaga.</p>
-      </motion.div>
-    </div>
-  </div>
-);
+  );
+};
 
 const BusyMonthSlide = ({ data }) => (
   <div className="flex flex-col h-full justify-center px-6 bg-gradient-to-tr from-purple-900 to-indigo-900 text-white relative">
@@ -351,7 +397,10 @@ const DamageReportSlide = ({ data }) => (
             <div><p className="text-amber-200 text-sm mb-1 uppercase tracking-wider font-semibold">Total Temuan</p><div className="text-6xl font-black text-white">{data.damageCases}</div></div>
             <div className="text-right"><p className="text-amber-200 text-sm mb-1 uppercase tracking-wider font-semibold">Selesai</p><div className="text-4xl font-bold text-green-400 flex items-center justify-end gap-2">{data.damageResolved} <CheckCircle size={24} /></div></div>
           </div>
-          <div className="mt-4 h-2 bg-black/30 rounded-full overflow-hidden"><motion.div initial={{ width: 0 }} animate={{ width: `${(data.damageResolved / data.damageCases) * 100}%` }} transition={{ delay: 1, duration: 1 }} className="h-full bg-green-500" /></div>
+          <div className="mt-4 h-2 bg-black/30 rounded-full overflow-hidden">
+            {/* PERBAIKAN: Mengganti template literal dengan string concatenation */}
+            <motion.div initial={{ width: 0 }} animate={{ width: String((data.damageResolved / (data.damageCases || 1)) * 100) + "%" }} transition={{ delay: 1, duration: 1 }} className="h-full bg-green-500" />
+          </div>
         </motion.div>
         <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="col-span-2 bg-amber-900/40 p-5 rounded-2xl border border-amber-500/10 mt-2">
           <p className="text-xs text-amber-300 mb-1">Masalah Paling Sering</p>
@@ -363,24 +412,32 @@ const DamageReportSlide = ({ data }) => (
   </div>
 );
 
-const TopLocationSlide = ({ data }) => (
-  <div className="flex flex-col h-full items-center justify-center px-6 bg-slate-900 text-white relative">
-    <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }} transition={{ duration: 3, repeat: Infinity }} className="absolute bg-blue-500/20 w-80 h-80 rounded-full blur-3xl" />
-    <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="z-10 flex flex-col items-center text-center">
-      <div className="mb-6 bg-blue-600 p-4 rounded-full shadow-[0_0_40px_rgba(37,99,235,0.5)]"><MapPin size={40} className="text-white" /></div>
-      <h3 className="text-blue-300 font-medium tracking-widest text-sm mb-2">ZONA PALING AMAN</h3>
-      <h1 className="text-4xl font-bold mb-4 max-w-xs leading-tight">{data.topLocation}</h1>
-      <div className="bg-slate-800/50 backdrop-blur border border-slate-700 px-6 py-4 rounded-xl mt-4">
-        <p className="text-slate-400 text-sm mb-1">Tingkat Kepatuhan</p>
-        <div className={`text-3xl font-black ${data.topLocationCompliance >= 90 ? "text-green-400" : "text-yellow-400"}`}>{data.topLocationCompliance}%</div>
-      </div>
-      <p className="mt-8 text-slate-400 text-sm px-8">Area ini menjadi contoh teladan bagi seluruh gedung. Pertahankan!</p>
-    </motion.div>
-  </div>
-);
+const TopLocationSlide = ({ data }) => {
+  // Membangun string class name dengan concatenation untuk menghindari error template literal
+  const complianceTextColor = data.topLocationCompliance >= 90 ? "text-green-400" : "text-yellow-400";
+  // PERBAIKAN: Mengganti template literal di JSX dengan string concatenation
+  const complianceClass = "text-3xl font-black " + complianceTextColor;
+
+  return (
+    // PERBAIKAN: Mengganti template literal di JSX dengan string biasa
+    <div className="flex flex-col h-full items-center justify-center px-6 bg-slate-900 text-white relative">
+      <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }} transition={{ duration: 3, repeat: Infinity }} className="absolute bg-blue-500/20 w-80 h-80 rounded-full blur-3xl" />
+      <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="z-10 flex flex-col items-center text-center">
+        <div className="mb-6 bg-blue-600 p-4 rounded-full shadow-[0_0_40px_rgba(37,99,235,0.5)]"><MapPin size={40} className="text-white" /></div>
+        <h3 className="text-blue-300 font-medium tracking-widest text-sm mb-2">ZONA PALING AMAN</h3>
+        <h1 className="text-4xl font-bold mb-4 max-w-xs leading-tight">{data.topLocation}</h1>
+        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 px-6 py-4 rounded-xl mt-4">
+          <p className="text-slate-400 text-sm mb-1">Tingkat Kepatuhan</p>
+          <div className={complianceClass}>{data.topLocationCompliance}%</div>
+        </div>
+        <p className="mt-8 text-slate-400 text-sm px-8">Area ini menjadi contoh teladan bagi seluruh gedung. Pertahankan!</p>
+      </motion.div>
+    </div>
+  );
+};
 
 const RefillSlide = ({ data }) => {
-  const hasRefills = data.refillCount > 0;
+  const hasRefills = (data?.refillCount || 0) > 0;
 
   return (
     <div className="flex flex-col h-full justify-center px-6 bg-gradient-to-b from-blue-900 to-indigo-950 text-white relative">
@@ -408,7 +465,7 @@ const RefillSlide = ({ data }) => {
           </div>
         </>
       ) : (
-        // Tampilan Jika TIDAK Ada Transaksi Refill (Tombol "Cek Status APAR Anda" DIHAPUS)
+        // Tampilan Jika TIDAK Ada Transaksi Refill
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -425,7 +482,6 @@ const RefillSlide = ({ data }) => {
               <AlertOctagon size={16} className="text-red-400" /> Awas! Jangan sampai APAR kedaluwarsa.
             </p>
           </div>
-          {/* Tombol 'Cek Status APAR Anda' sudah dihapus di sini sesuai permintaan */}
         </motion.div>
       )}
     </div>
@@ -433,37 +489,62 @@ const RefillSlide = ({ data }) => {
 };
 
 // PersonaSlide sekarang menerima ref dan handler untuk Download & Share
-const PersonaSlide = React.forwardRef(({ data, onDownload, onShare, isDownloading, isCapturing }, ref) => {
+const PersonaSlide = React.forwardRef(({ data, onDownload, onShare, isDownloading, isCapturing, currentYear }, ref) => {
   let persona = {};
-  if (data.safetyScore >= 90) {
+
+  // Memastikan data tidak null sebelum mengakses propertinya
+  const safetyScore = data?.safetyScore || 0;
+
+  if (safetyScore >= 90) {
     persona = { title: "THE FIRE COMMANDER", subtitle: "Sang Penakluk Risiko", desc: "Anda tidak hanya mematuhi aturan, Anda menetapkan standar! Aset Anda seperti benteng besi yang tak tertembus api.", color: "from-yellow-400 to-red-600", icon: <Award size={80} className="text-yellow-200" />, analogy: "🛡️ Benteng Besi" };
-  } else if (data.safetyScore >= 70) {
+  } else if (safetyScore >= 70) {
     persona = { title: "THE VIGILANT OWL", subtitle: "Siaga Senyap", desc: "Anda selalu waspada. Meski ada sedikit celah, mata Anda setajam elang dalam memantau jadwal expired.", color: "from-blue-500 to-cyan-600", icon: <ShieldCheck size={80} className="text-blue-100" />, analogy: "🦉 Mata Elang" };
   } else {
     persona = { title: "THE GAMBLER", subtitle: "Pemain Api", desc: "Hati-hati! Keberuntungan tidak berlangsung selamanya. Jadwal inspeksi Anda butuh perhatian serius tahun depan.", color: "from-gray-800 to-gray-900", icon: <AlertTriangle size={80} className="text-red-500" />, analogy: "🎲 Dadu Panas" };
   }
 
+  // Jika menggunakan MOCK data, override persona
+  if (data?.userName.includes("MOCK DATA FALLBACK")) {
+    persona.title = "DEBUG MODE";
+    persona.analogy = "🚧 Data Simulasi";
+    persona.desc = "Aplikasi berjalan dengan data simulasi karena gagal terhubung ke API Anda. Pastikan server lokal sudah berjalan dan mengizinkan CORS.";
+    persona.color = "from-gray-900 to-red-950";
+  }
+
+  // PERBAIKAN: Mengganti template literal di JSX dengan string concatenation
+  const containerClass = "flex flex-col h-full items-center justify-center px-6 bg-gradient-to-br " + persona.color + " text-white relative";
+
   return (
     <div
       ref={ref} // Ref diletakkan di container slide untuk di-capture
-      className={`flex flex-col h-full items-center justify-center px-6 bg-gradient-to-br ${persona.color} text-white relative`}
+      className={containerClass}
     >
       {/* Background Bubbles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">{[...Array(20)].map((_, i) => (<motion.div key={i} className="absolute rounded-full bg-white/20" initial={{ top: -20, left: Math.random() * 100 + "%", width: Math.random() * 20 + 5, height: Math.random() * 20 + 5 }} animate={{ top: "120%", rotate: 360 }} transition={{ duration: Math.random() * 2 + 3, repeat: Infinity, delay: Math.random() * 2 }} />))}</div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">{[...Array(20)].map((_, i) => (
+        // PERBAIKAN: Mengganti template literal key dengan string concatenation
+        <motion.div
+          key={"bubble-" + i}
+          className="absolute rounded-full bg-white/20"
+          initial={{ top: -20, left: Math.random() * 100 + "%", width: Math.random() * 20 + 5, height: Math.random() * 20 + 5 }}
+          animate={{ top: "120%", rotate: 360 }}
+          transition={{ duration: Math.random() * 2 + 3, repeat: Infinity, delay: Math.random() * 2 }}
+        />
+      ))}</div>
 
       {/* Content */}
       <motion.div initial={{ scale: 0.5, rotate: -10, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0.5 }} className="mb-8 p-6 bg-white/10 backdrop-blur-lg rounded-full shadow-[0_0_50px_rgba(255,255,255,0.3)] border border-white/30">{persona.icon}</motion.div>
-      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white/80 font-medium tracking-widest text-sm mb-2">STATUS KESIAPAN 2025</motion.p>
+      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white/80 font-medium tracking-widest text-sm mb-2">STATUS KESIAPAN {currentYear}</motion.p>
       <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="text-4xl font-black text-center mb-1 uppercase leading-tight">{persona.title}</motion.h1>
       <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="text-xl font-bold text-white/90 mb-6 px-4 py-1 rounded-full">{persona.analogy}</motion.h2>
       <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="bg-black/30 backdrop-blur-sm p-6 rounded-2xl text-center border border-white/10"><p className="text-lg leading-relaxed font-medium">"{persona.desc}"</p></motion.div>
 
       {/* Tombol Aksi: Sembunyikan jika isCapturing=true */}
       <motion.div
+        // PERBAIKAN: Mengganti template literal di JSX dengan string concatenation
+        className={"mt-8 flex flex-col gap-3 " + (isCapturing ? 'hidden' : 'block')}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
-        className={`mt-8 flex flex-col gap-3 ${isCapturing ? 'hidden' : 'block'}`}
       >
         {/* Tombol Download Gambar */}
         <button
@@ -502,22 +583,32 @@ const LoadingScreen = () => (
     >
       <Loader2 size={48} className="text-blue-500 mb-4" />
     </motion.div>
-    <p className="text-sm font-medium animate-pulse text-blue-200">Mengambil Data Firecek...</p>
+    <p className="text-sm font-medium animate-pulse text-blue-200">Mengambil Data Firecek dari API...</p>
   </div>
 );
 
-const ErrorScreen = ({ onRetry }) => (
+const ErrorScreen = ({ error, onRetry, customerCode, currentYear }) => (
   <div className="flex flex-col items-center justify-center h-full bg-gray-950 text-white px-6 text-center">
     <AlertTriangle size={48} className="text-red-500 mb-4" />
     <h3 className="text-xl font-bold mb-2">Gagal Memuat Data</h3>
-    <p className="text-gray-400 text-sm mb-6">Terjadi kesalahan saat menghubungi server.</p>
-    <button onClick={onRetry} className="px-6 py-2 bg-white text-gray-900 rounded-full font-bold text-sm">Coba Lagi</button>
+    <p className="text-gray-400 text-sm mb-4">
+      Gagal tersambung ke URL API Anda (<span className='text-red-300 font-mono'>web.firecek.com</span>).
+      Ini biasanya disebabkan oleh <span className='text-red-300 font-bold'>CORS</span> atau server lokal tidak dapat dijangkau.
+    </p>
+    <p className='text-yellow-500 font-medium mb-2'>
+      Saat ini beralih menggunakan **Data Simulasi (Mock Data)** untuk <span className='font-bold'>{customerCode}</span> tahun <span className='font-bold'>{currentYear}</span>.
+    </p>
+    <p className='text-xs text-gray-500 mb-6'>
+      (Detail Error: {error?.message || "Unknown error"})
+    </p>
+    <button onClick={onRetry} className="px-6 py-2 bg-blue-600 text-white rounded-full font-bold text-sm">Coba Lagi</button>
   </div>
 );
 
 // --- MAIN APP COMPONENT ---
 
 export default function App() {
+  // Semua hooks dideklarasikan di awal komponen untuk mematuhi Aturan Hooks React
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const personaSlideRef = useRef(null);
@@ -529,65 +620,47 @@ export default function App() {
 
   // New state to control button visibility during capture
   const [isCapturing, setIsCapturing] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false); // Reused for capturing status
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // SHARE MODAL STATES (for fallback only)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [fallbackShareText, setFallbackShareText] = useState('');
 
-  // Simulation for debug/demo
-  const [debugScenario, setDebugScenario] = useState('user_low'); // Default ke user_low untuk tes 0 Refill
+  // States for URL parameters
+  const [customerCode, setCustomerCode] = useState(null);
+  const [currentYear, setCurrentYear] = useState(null);
 
-  // --- Memuat Pustaka Eksternal (html2canvas) ---
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    script.onload = () => console.log('html2canvas loaded');
-    document.head.appendChild(script);
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, []);
+  // --- Utility Functions (Dideklarasikan dengan useCallback) ---
 
   const closeShareModal = () => {
     setIsShareModalOpen(false);
     setFallbackShareText('');
+    setIsAutoPlaying(true); // Lanjutkan autoplay jika ditutup
   };
 
-  // 1. Fungsi Fallback Berbagi (Modal Salin Teks)
   const handleFallbackShare = useCallback((text) => {
     setFallbackShareText(text);
     setIsShareModalOpen(true);
     setIsAutoPlaying(false); // Stop autoplay when modal is open
   }, []);
 
-  // 2. Fungsi Utama Berbagi (Web Share API)
   const handleCaptureAndShare = useCallback(async () => {
-    // START: REFINED GUARD CLAUSE
-    if (!window.html2canvas || !personaSlideRef.current || isDownloading || !data) {
-      console.error('Prasyarat berbagi belum terpenuhi:', { html2canvasReady: !!window.html2canvas, refReady: !!personaSlideRef.current, isDownloading, dataExists: !!data });
+    // Memastikan data dan customerCode sudah ada
+    if (!window.html2canvas || !personaSlideRef.current || isDownloading || !data || !customerCode || !currentYear) {
       window.alert('Mohon tunggu sebentar, atau data belum siap. Coba lagi.');
       return;
     }
-    // END: REFINED GUARD CLAUSE
 
-    // Tentukan Persona & Teks untuk Sharing
-    let persona = {};
-    if (data.safetyScore >= 90) {
-      persona = { title: "THE FIRE COMMANDER", analogy: "🛡️ Benteng Besi" };
-    } else if (data.safetyScore >= 70) {
-      persona = { title: "THE VIGILANT OWL", analogy: "🦉 Mata Elang" };
-    } else {
-      persona = { title: "THE GAMBLER", analogy: "🎲 Dadu Panas" };
-    }
+    let persona = { title: data.personaTitle, analogy: data.personaAnalogy };
 
-    const shareText = `Lihat status kesiapan APAR ${data.userName} tahun 2025 di Firecek Wrapped! Kami mendapatkan gelar ${persona.analogy} - ${persona.title}!
-Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi aset dari bahaya kebakaran sekarang: https://firecek.com`;
+    // PERBAIKAN KRUSIAL: Mengganti template literal multiline dengan string concatenation 
+    // untuk menghindari masalah parsing
+    const shareText = "Lihat status kesiapan APAR " + data.userName + " tahun " + currentYear + " di Firecek Wrapped! " +
+      "Kami mendapatkan gelar " + persona.analogy + " - " + persona.title + "! " +
+      "Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi aset dari bahaya kebakaran sekarang: https://firecek.com";
 
-    setIsDownloading(true); // Reusing state for capturing status
+    setIsDownloading(true);
     setIsCapturing(true);
-
-    // Tunggu sebentar untuk memastikan React selesai merender perubahan (tombol tersembunyi)
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
@@ -598,54 +671,43 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
         useCORS: true,
       });
 
-      // 1. Konversi Canvas ke Blob
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-
-      // 2. Buat Objek File
-      const fileName = `Firecek_Wrapped_2025_${data.userName.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+      // PERBAIKAN: Mengganti template literal dengan string concatenation
+      const fileName = "Firecek_Wrapped_" + currentYear + "_" + data.userName.replace(/[^a-zA-Z0-9]/g, '_') + ".png";
       const imageFile = new File([blob], fileName, { type: 'image/png' });
 
       const shareData = {
         files: [imageFile],
-        title: 'Firecek Wrapped 2025: Status Kesiapan APAR',
+        title: "Firecek Wrapped " + currentYear + ": Status Kesiapan APAR",
         text: shareText,
         url: 'https://firecek.com'
       };
 
-      // 3. Coba Web Share API dengan File
       if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData);
       } else {
-        // 4. Jika Web Share API Gagal/Tidak Didukung, gunakan Fallback Modal
         handleFallbackShare(shareText);
       }
 
     } catch (e) {
-      // Jika pengguna membatalkan (AbortError), tidak perlu modal
       if (e.name !== 'AbortError') {
         console.error("Gagal berbagi menggunakan Web Share API:", e);
-        // Beri Fallback jika ada error tak terduga
         handleFallbackShare(shareText);
       }
     } finally {
       setIsDownloading(false);
       setIsCapturing(false);
     }
-  }, [data, isDownloading, handleFallbackShare]); // Tambahkan isDownloading dan handleFallbackShare sebagai dependency
+  }, [data, isDownloading, handleFallbackShare, customerCode, currentYear]);
 
-  // Fungsi untuk menangkap DOM dan mengunduh gambar (tetap ada untuk tombol Download)
   const handleCaptureAndDownload = useCallback(async () => {
-    // START: REFINED GUARD CLAUSE
-    if (!window.html2canvas || !personaSlideRef.current || !data) {
-      console.error('Prasyarat unduh belum terpenuhi:', { html2canvasReady: !!window.html2canvas, refReady: !!personaSlideRef.current, dataExists: !!data });
+    if (!window.html2canvas || !personaSlideRef.current || !data || !currentYear) {
       window.alert('Mohon tunggu sebentar, atau data belum siap. Coba lagi.');
       return;
     }
-    // END: REFINED GUARD CLAUSE
 
     setIsDownloading(true);
     setIsCapturing(true);
-
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
@@ -660,7 +722,8 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
 
       const a = document.createElement('a');
       a.href = image;
-      a.download = `Firecek_Wrapped_2025_${data.userName.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+      // PERBAIKAN: Mengganti template literal dengan string concatenation
+      a.download = "Firecek_Wrapped_" + currentYear + "_" + data.userName.replace(/[^a-zA-Z0-9]/g, '_') + ".png";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -674,49 +737,89 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
       setIsDownloading(false);
       setIsCapturing(false);
     }
-  }, [data?.userName, data]);
+  }, [data, currentYear]);
 
-  // Function to fetch data (Bisa diganti dengan real API Call)
-  const fetchData = async (kodeCustomer) => {
+  // Function to fetch data (Menggunakan API nyata dengan fallback)
+  const fetchData = async (code, year) => {
+    // Pastikan kode dan tahun valid
+    if (!code || !year) {
+      setIsLoading(false);
+      setError(new Error("Parameter kode_customer atau year tidak ditemukan di URL."));
+      setData(MOCK_DB);
+      console.warn("Menggunakan data MOCK: Parameter URL hilang.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    setCurrentSlide(0); // Reset slide ke awal
+    setCurrentSlide(0);
 
     try {
-      const result = await apiService.getRecapData(kodeCustomer);
+      // Coba ambil dari API nyata
+      const result = await apiService.getRecapData(code, year);
       setData(result);
-      setIsLoading(false);
     } catch (err) {
-      console.error(err);
+      // Jika GAGAL, gunakan data MOCK sebagai fallback
+      // PERBAIKAN: Mengganti template literal dengan string concatenation
+      const mockData = { ...MOCK_DB, userName: code + " (" + MOCK_DB.userName + ")" };
       setError(err);
+      setData(mockData);
+      console.warn("Menggunakan data MOCK: Data API gagal dimuat.");
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Initial Load & Debug Toggle Effect
-  useEffect(() => {
-    fetchData(debugScenario);
-  }, [debugScenario]);
+  // --- Effects ---
 
+  // 1. Load html2canvas
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => console.log('html2canvas loaded');
+    document.head.appendChild(script);
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, []);
+
+  // 2. Parse URL Parameters on Load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('kode_customer') || 'DEFAULT.CODE';
+    const year = params.get('year') || String(new Date().getFullYear());
+
+    setCustomerCode(code);
+    setCurrentYear(year);
+  }, []);
+
+  // 3. Initial Data Load (triggered when customerCode and currentYear are set)
+  useEffect(() => {
+    if (customerCode && currentYear) {
+      fetchData(customerCode, currentYear);
+    }
+  }, [customerCode, currentYear]); // Dependensi pada customerCode dan currentYear
+
+  // Slide definitions (Menggunakan data yang sudah pasti ada/mock)
+  // Pastikan data/currentYear tidak null sebelum digunakan di slides
   const slides = [
-    // NOTE: IntroSlide tidak lagi menerima onNext
-    { id: 0, component: <IntroSlide data={data} /> },
-    { id: 1, component: <InspectionSlide data={data} /> },
-    { id: 2, component: <BusyMonthSlide data={data} /> },
-    { id: 3, component: <DamageReportSlide data={data} /> },
-    { id: 4, component: <TopLocationSlide data={data} /> },
-    { id: 5, component: <RefillSlide data={data} /> },
-    // PersonaSlide menerima handler share yang baru
+    { id: 0, component: <IntroSlide data={data} currentYear={currentYear || 'Tahun'} /> },
+    { id: 1, component: <InspectionSlide data={data || MOCK_DB} /> },
+    { id: 2, component: <BusyMonthSlide data={data || MOCK_DB} /> },
+    { id: 3, component: <DamageReportSlide data={data || MOCK_DB} /> },
+    { id: 4, component: <TopLocationSlide data={data || MOCK_DB} /> },
+    { id: 5, component: <RefillSlide data={data || MOCK_DB} /> },
     {
       id: 6,
       component: (
         <PersonaSlide
           ref={personaSlideRef}
-          data={data}
-          onShare={handleCaptureAndShare} // NEW: Panggil Web Share API
-          onDownload={handleCaptureAndDownload} // Tetap untuk download
+          data={data || MOCK_DB}
+          onShare={handleCaptureAndShare}
+          onDownload={handleCaptureAndDownload}
           isDownloading={isDownloading}
           isCapturing={isCapturing}
+          currentYear={currentYear || 'Tahun'}
         />
       )
     },
@@ -730,10 +833,9 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
 
   // Logika Autoplay/Auto-scroll
   useEffect(() => {
-    if (!isAutoPlaying || isLoading || !data || isShareModalOpen) return;
+    // Autoplay hanya berjalan jika data sudah ada dan tidak sedang di-share modal
+    if (!isAutoPlaying || !data || isShareModalOpen || isLoading) return;
 
-    // Slide 0 (Intro) akan berjalan otomatis selama 3 detik sebelum lanjut
-    // Slide lain berjalan 5 detik
     const duration = currentSlide === 0 ? 3000 : 5000;
 
     const timer = setTimeout(() => {
@@ -744,11 +846,12 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
       }
     }, duration);
     return () => clearTimeout(timer);
-  }, [currentSlide, isAutoPlaying, slides.length, isLoading, data, isShareModalOpen]);
+  }, [currentSlide, isAutoPlaying, slides.length, data, isShareModalOpen, isLoading]);
 
 
   const handleTap = (e) => {
-    if (isLoading || !data || isShareModalOpen) return;
+    // Jangan navigasi jika loading, ada error, atau modal terbuka
+    if (isLoading || isShareModalOpen) return;
     if (e.target.closest('.debug-controls')) return;
 
     // Cek apakah yang di-klik adalah tombol, jika ya, jangan navigasi
@@ -759,15 +862,6 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
     const container = e.currentTarget.getBoundingClientRect();
     const relativeClickX = e.clientX - container.left;
 
-    // Menangani tap di slide intro setelah autoplay selesai (untuk navigasi manual)
-    if (currentSlide === 0) {
-      // Izinkan tap ke slide 1 jika autoplay sudah lewat 3 detik
-      if (relativeClickX > container.width / 3 && relativeClickX < (container.width * 2) / 3) {
-        goToSlide(1);
-        return;
-      }
-    }
-
     // Navigasi Manual
     if (relativeClickX < container.width / 3) {
       goToSlide(currentSlide - 1);
@@ -776,6 +870,38 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
     }
   };
 
+  // Jika customerCode/currentYear belum di-set, atau masih loading
+  if (isLoading || !customerCode || !currentYear) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 font-sans p-4">
+        <div className="w-full max-w-md h-[100dvh] sm:h-[800px] bg-black relative overflow-hidden sm:rounded-3xl shadow-2xl sm:border-8 sm:border-gray-800 transition-all">
+          <LoadingScreen />
+        </div>
+      </div>
+    );
+  }
+
+  // Jika error, tampilkan layar error dengan tombol retry
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 font-sans p-4">
+        <div className="w-full max-w-md h-[100dvh] sm:h-[800px] bg-black relative overflow-hidden sm:rounded-3xl shadow-2xl sm:border-8 sm:border-gray-800 transition-all">
+          <ErrorScreen
+            error={error}
+            onRetry={() => fetchData(customerCode, currentYear)}
+            customerCode={customerCode}
+            currentYear={currentYear}
+          />
+        </div>
+        <div className="debug-controls mt-4 text-center">
+          <p className="text-sm text-gray-500 mb-2">Saat ini menggunakan <span className='text-red-400 font-bold'>DATA SIMULASI</span>.</p>
+        </div>
+      </div>
+    );
+  }
+
+
+  // --- Render Utama Jika Data Sudah Ada (API atau Mock) ---
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 font-sans p-4">
 
@@ -784,78 +910,62 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
         className="w-full max-w-md h-[100dvh] sm:h-[800px] bg-black relative overflow-hidden sm:rounded-3xl shadow-2xl sm:border-8 sm:border-gray-800 transition-all"
         onClick={handleTap}
       >
-        {/* Render Content Based on State */}
-        {isLoading ? (
-          <LoadingScreen />
-        ) : error ? (
-          <ErrorScreen onRetry={() => fetchData(debugScenario)} />
-        ) : (
-          <>
-            {/* Progress Bars */}
-            {currentSlide > 0 && currentSlide < slides.length - 1 && (
-              <ProgressBar current={currentSlide} total={slides.length - 1} />
-            )}
-
-            {/* Slide Content */}
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div
-                key={currentSlide}
-                initial={{ opacity: 0, x: 200 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -200 }}
-                transition={{ duration: 0.5 }}
-                className="absolute inset-0"
-              >
-                {slides[currentSlide].component}
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Controls (Panah Navigasi) */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-between z-50 pointer-events-none">
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: currentSlide > 0 ? 1 : 0 }}
-                transition={{ duration: 0.3 }}
-                onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide - 1); }}
-                className="pointer-events-auto bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition shadow-lg"
-              >
-                <ArrowRight size={20} className="rotate-180" />
-              </motion.button>
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: currentSlide < slides.length - 1 && currentSlide > 0 ? 1 : 0 }}
-                transition={{ duration: 0.3 }}
-                onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide + 1); }}
-                className="pointer-events-auto bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition shadow-lg"
-              >
-                <ArrowRight size={20} />
-              </motion.button>
-            </div>
-          </>
+        {/* Progress Bars */}
+        {currentSlide > 0 && currentSlide < slides.length - 1 && (
+          <ProgressBar current={currentSlide} total={slides.length - 1} />
         )}
+
+        {/* Slide Content */}
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div
+            key={currentSlide}
+            initial={{ opacity: 0, x: 200 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -200 }}
+            transition={{ duration: 0.5 }}
+            className="absolute inset-0"
+          >
+            {slides[currentSlide].component}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Controls (Panah Navigasi) */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-between z-50 pointer-events-none">
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: currentSlide > 0 ? 1 : 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide - 1); }}
+            className="pointer-events-auto bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition shadow-lg"
+          >
+            <ArrowRight size={20} className="rotate-180" />
+          </motion.button>
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: currentSlide < slides.length - 1 && currentSlide > 0 ? 1 : 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={(e) => { e.stopPropagation(); goToSlide(currentSlide + 1); }}
+            className="pointer-events-auto bg-white/20 text-white p-3 rounded-full hover:bg-white/30 transition shadow-lg"
+          >
+            <ArrowRight size={20} />
+          </motion.button>
+        </div>
       </div>
 
-      {/* Debug/Scenario Controls */}
-      <div className="debug-controls mt-4 text-center">
-        <p className="text-sm text-gray-500 mb-2">Simulasi Pengguna:</p>
-        <div className="flex gap-2 text-xs">
-          {Object.keys(MOCK_DB).map(key => (
-            <button
-              key={key}
-              onClick={() => setDebugScenario(key)}
-              className={`px-3 py-1 rounded-full font-medium transition ${debugScenario === key ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-            >
-              {key.replace('user_', '').toUpperCase()}
-            </button>
-          ))}
-        </div>
+      {/* Tombol Reload Data */}
+      {/* <div className="debug-controls mt-4 text-center">
+        <p className="text-sm text-gray-500 mb-2">
+          Kode: <span className='text-blue-400 font-bold'>{customerCode}</span> |
+          Tahun: <span className='text-blue-400 font-bold'>{currentYear}</span>
+        </p>
         <button
-          onClick={() => setIsAutoPlaying(prev => !prev)}
-          className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+          onClick={() => fetchData(customerCode, currentYear)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-full font-bold text-sm flex items-center gap-2 mx-auto hover:bg-blue-700 transition"
         >
-          {isAutoPlaying ? '⏸️ Jeda Autoplay' : '▶️ Lanjutkan Autoplay'}
+          <RefreshCcw size={14} /> Muat Ulang Data API
         </button>
-      </div>
+        {data?.userName?.includes("MOCK DATA FALLBACK") && <p className='text-xs text-red-500 mt-2'>Gagal terhubung ke API Anda. Menggunakan data simulasi.</p>}
+      </div> */}
 
       {/* Fallback Share Modal */}
       <AnimatePresence>
