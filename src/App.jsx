@@ -71,8 +71,8 @@ const MOCK_DB = {
     inspectionsScheduled: 240,
     inspectionsRealized: 85,
     ontimePercentage: 35,
-    refillCount: 2,
-    refillTypeMost: "Powder 3kg",
+    refillCount: 0,
+    refillTypeMost: "N/A",
     safetyScore: 45,
     busiestMonth: "Januari",
     busiestMonthCount: 20,
@@ -202,7 +202,8 @@ const ShareModal = ({ isOpen, onClose, shareText }) => {
 
 // --- HALAMAN-HALAMAN SLIDE ---
 
-const IntroSlide = ({ onNext, data }) => (
+// NOTE: Tombol 'LIHAT RECAP' dihapus dan perpindahan slide akan ditangani oleh useEffect di komponen App
+const IntroSlide = ({ data }) => (
   <div className="flex flex-col items-center justify-center h-full text-center px-6 relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
     {/* Plasma/Blob Background Effect (Enhanced) */}
     {[...Array(5)].map((_, i) => (
@@ -256,38 +257,33 @@ const IntroSlide = ({ onNext, data }) => (
         2025
       </motion.h2>
 
-      {/* Prepared For Box */}
+      {/* Prepared For Box - Teks diubah menjadi lebih ringan dan santai */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1 }}
         className="mt-10 bg-white/5 backdrop-blur-sm p-5 rounded-2xl border border-white/20 w-full max-w-xs shadow-xl"
       >
-        <p className="text-blue-200 text-xs font-medium uppercase tracking-widest mb-1">Dipersiapkan Untuk</p>
+        {/* Perubahan teks: "Dibuat Khusus Untuk" -> "Ini Dia Rekapan Spesial Punya" */}
+        <p className="text-blue-200 text-xs font-medium uppercase tracking-widest mb-1">Ini Dia Rekapan Spesial Punya</p>
         <p className="text-white font-bold text-xl leading-tight">{data.userName}</p>
       </motion.div>
 
-      {/* CTA Button */}
-      <motion.button
-        initial={{ y: 50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 1.5, type: "spring" }}
-        whileHover={{ scale: 1.05, boxShadow: "0px 0px 30px rgba(59, 130, 246, 0.5)" }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onNext}
-        className="mt-12 px-10 py-4 bg-blue-600 text-white font-black text-lg rounded-full shadow-2xl flex items-center gap-3 relative overflow-hidden group hover:bg-blue-700 transition"
+      {/* Ganti Tombol CTA dengan Text Auto-Scroll */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.5, duration: 0.8 }}
+        className="mt-12 text-lg font-medium text-blue-400 flex items-center gap-3"
       >
-        <span className="relative z-10">LIHAT RECAP</span>
-        <motion.span animate={{ x: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="relative z-10">
-          <ArrowRight size={22} strokeWidth={3} />
-        </motion.span>
-        {/* Shimmer effect inside button */}
         <motion.div
-          className="absolute top-0 -left-[150%] w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12"
-          animate={{ left: ["-150%", "150%"] }}
-          transition={{ repeat: Infinity, duration: 3, delay: 2, repeatDelay: 1 }}
-        />
-      </motion.button>
+          animate={{ x: [0, 5, 0] }}
+          transition={{ repeat: Infinity, duration: 1, ease: "easeInOut" }}
+        >
+          <ArrowRight size={22} strokeWidth={3} />
+        </motion.div>
+        <span>Rekapan dimulai otomatis...</span>
+      </motion.div>
     </div>
   </div>
 );
@@ -383,28 +379,58 @@ const TopLocationSlide = ({ data }) => (
   </div>
 );
 
-const RefillSlide = ({ data }) => (
-  <div className="flex flex-col h-full justify-center px-6 bg-gradient-to-b from-blue-900 to-indigo-950 text-white relative">
-    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5"><RefreshCcw size={400} /></div>
-    <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center mb-10 z-10">
-      <h2 className="text-2xl font-medium text-blue-200">Penyegaran Aset</h2>
-      <div className="mt-4 flex items-center justify-center gap-3">
-        <FireExtinguisher size={48} className="text-blue-400" />
-        <span className="text-6xl font-black">{data.refillCount}</span>
-      </div>
-      <p className="text-xl mt-2 font-medium">Transaksi Refill</p>
-    </motion.div>
-    <div className="grid grid-cols-1 gap-4 z-10">
-      <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-white/10 p-4 rounded-xl flex items-center gap-4">
-        <div className="bg-blue-500/20 p-3 rounded-full"><TrendingUp className="text-blue-300" /></div>
-        <div><p className="text-xs text-blue-200">Tipe Terbanyak</p><p className="font-bold text-lg">{data.refillTypeMost}</p></div>
-      </motion.div>
-      <motion.div initial={{ x: -100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.5 }} className="bg-white/10 p-4 rounded-xl">
-        <p className="text-sm italic text-center text-blue-100">"Pencegahan lebih baik daripada penanggulangan. Anda memastikan alat Anda selalu prima."</p>
-      </motion.div>
+const RefillSlide = ({ data }) => {
+  const hasRefills = data.refillCount > 0;
+
+  return (
+    <div className="flex flex-col h-full justify-center px-6 bg-gradient-to-b from-blue-900 to-indigo-950 text-white relative">
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5"><RefreshCcw size={400} /></div>
+
+      {hasRefills ? (
+        // Tampilan Jika Ada Transaksi Refill
+        <>
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center mb-10 z-10">
+            <h2 className="text-2xl font-medium text-blue-200">Penyegaran Aset</h2>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <FireExtinguisher size={48} className="text-blue-400" />
+              <span className="text-6xl font-black">{data.refillCount}</span>
+            </div>
+            <p className="text-xl mt-2 font-medium">Transaksi Refill</p>
+          </motion.div>
+          <div className="grid grid-cols-1 gap-4 z-10">
+            <motion.div initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-white/10 p-4 rounded-xl flex items-center gap-4">
+              <div className="bg-blue-500/20 p-3 rounded-full"><TrendingUp className="text-blue-300" /></div>
+              <div><p className="text-xs text-blue-200">Tipe Terbanyak</p><p className="font-bold text-lg">{data.refillTypeMost}</p></div>
+            </motion.div>
+            <motion.div initial={{ x: -100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.5 }} className="bg-white/10 p-4 rounded-xl">
+              <p className="text-sm italic text-center text-blue-100">"Pencegahan lebih baik daripada penanggulangan. Anda memastikan alat Anda selalu prima."</p>
+            </motion.div>
+          </div>
+        </>
+      ) : (
+        // Tampilan Jika TIDAK Ada Transaksi Refill (Tombol "Cek Status APAR Anda" DIHAPUS)
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="flex flex-col items-center justify-center text-center z-10 p-8 bg-white/10 rounded-2xl border border-blue-500/30 backdrop-blur-md shadow-xl"
+        >
+          <FireExtinguisher size={64} className="text-blue-400 mb-4" />
+          <h2 className="text-3xl font-bold mb-2">Refill = 0</h2>
+          <p className="text-blue-200 mb-6">
+            Wah, kami tidak menemukan transaksi refill di catatan Anda tahun ini.
+          </p>
+          <div className="bg-red-800/50 p-3 rounded-lg border border-red-500/70">
+            <p className="text-sm font-medium text-white flex items-center gap-2">
+              <AlertOctagon size={16} className="text-red-400" /> Awas! Jangan sampai APAR kedaluwarsa.
+            </p>
+          </div>
+          {/* Tombol 'Cek Status APAR Anda' sudah dihapus di sini sesuai permintaan */}
+        </motion.div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 // PersonaSlide sekarang menerima ref dan handler untuk Download & Share
 const PersonaSlide = React.forwardRef(({ data, onDownload, onShare, isDownloading, isCapturing }, ref) => {
@@ -510,7 +536,7 @@ export default function App() {
   const [fallbackShareText, setFallbackShareText] = useState('');
 
   // Simulation for debug/demo
-  const [debugScenario, setDebugScenario] = useState('user_high');
+  const [debugScenario, setDebugScenario] = useState('user_low'); // Default ke user_low untuk tes 0 Refill
 
   // --- Memuat Pustaka Eksternal (html2canvas) ---
   useEffect(() => {
@@ -537,10 +563,13 @@ export default function App() {
 
   // 2. Fungsi Utama Berbagi (Web Share API)
   const handleCaptureAndShare = useCallback(async () => {
+    // START: REFINED GUARD CLAUSE
     if (!window.html2canvas || !personaSlideRef.current || isDownloading || !data) {
-      window.alert('Pustaka gambar belum siap atau data tidak valid. Coba lagi.');
+      console.error('Prasyarat berbagi belum terpenuhi:', { html2canvasReady: !!window.html2canvas, refReady: !!personaSlideRef.current, isDownloading, dataExists: !!data });
+      window.alert('Mohon tunggu sebentar, atau data belum siap. Coba lagi.');
       return;
     }
+    // END: REFINED GUARD CLAUSE
 
     // Tentukan Persona & Teks untuk Sharing
     let persona = {};
@@ -606,10 +635,13 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
 
   // Fungsi untuk menangkap DOM dan mengunduh gambar (tetap ada untuk tombol Download)
   const handleCaptureAndDownload = useCallback(async () => {
-    if (!window.html2canvas || !personaSlideRef.current) {
-      window.alert('Pustaka gambar belum siap. Coba lagi.');
+    // START: REFINED GUARD CLAUSE
+    if (!window.html2canvas || !personaSlideRef.current || !data) {
+      console.error('Prasyarat unduh belum terpenuhi:', { html2canvasReady: !!window.html2canvas, refReady: !!personaSlideRef.current, dataExists: !!data });
+      window.alert('Mohon tunggu sebentar, atau data belum siap. Coba lagi.');
       return;
     }
+    // END: REFINED GUARD CLAUSE
 
     setIsDownloading(true);
     setIsCapturing(true);
@@ -642,7 +674,7 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
       setIsDownloading(false);
       setIsCapturing(false);
     }
-  }, [data?.userName]);
+  }, [data?.userName, data]);
 
   // Function to fetch data (Bisa diganti dengan real API Call)
   const fetchData = async (kodeCustomer) => {
@@ -667,7 +699,8 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
   }, [debugScenario]);
 
   const slides = [
-    { id: 0, component: <IntroSlide onNext={() => goToSlide(1)} data={data} /> },
+    // NOTE: IntroSlide tidak lagi menerima onNext
+    { id: 0, component: <IntroSlide data={data} /> },
     { id: 1, component: <InspectionSlide data={data} /> },
     { id: 2, component: <BusyMonthSlide data={data} /> },
     { id: 3, component: <DamageReportSlide data={data} /> },
@@ -695,18 +728,24 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
     }
   };
 
+  // Logika Autoplay/Auto-scroll
   useEffect(() => {
     if (!isAutoPlaying || isLoading || !data || isShareModalOpen) return;
-    const duration = currentSlide === 0 ? 99999 : 5000;
+
+    // Slide 0 (Intro) akan berjalan otomatis selama 3 detik sebelum lanjut
+    // Slide lain berjalan 5 detik
+    const duration = currentSlide === 0 ? 3000 : 5000;
+
     const timer = setTimeout(() => {
       if (currentSlide < slides.length - 1) {
         setCurrentSlide(prev => prev + 1);
       } else {
-        setIsAutoPlaying(false);
+        setIsAutoPlaying(false); // Stop autoplay setelah slide terakhir
       }
     }, duration);
     return () => clearTimeout(timer);
   }, [currentSlide, isAutoPlaying, slides.length, isLoading, data, isShareModalOpen]);
+
 
   const handleTap = (e) => {
     if (isLoading || !data || isShareModalOpen) return;
@@ -714,10 +753,22 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
 
     // Cek apakah yang di-klik adalah tombol, jika ya, jangan navigasi
     if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+    // Cek apakah yang di-klik adalah tombol di slide Persona
+    if (currentSlide === slides.length - 1 && e.target.closest('button')) return;
 
     const container = e.currentTarget.getBoundingClientRect();
     const relativeClickX = e.clientX - container.left;
 
+    // Menangani tap di slide intro setelah autoplay selesai (untuk navigasi manual)
+    if (currentSlide === 0) {
+      // Izinkan tap ke slide 1 jika autoplay sudah lewat 3 detik
+      if (relativeClickX > container.width / 3 && relativeClickX < (container.width * 2) / 3) {
+        goToSlide(1);
+        return;
+      }
+    }
+
+    // Navigasi Manual
     if (relativeClickX < container.width / 3) {
       goToSlide(currentSlide - 1);
     } else {
@@ -759,7 +810,7 @@ Capai proteksi terbaik untuk aset Anda. Ayo, jadilah #FireCommander! Lindungi as
               </motion.div>
             </AnimatePresence>
 
-            {/* Controls */}
+            {/* Controls (Panah Navigasi) */}
             <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-between z-50 pointer-events-none">
               <motion.button
                 initial={{ opacity: 0 }}
